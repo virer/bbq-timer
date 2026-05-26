@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 BBQ Timer Pro</title>
+    <style>
+        :root {
+            --bg-color: #1e1e24;
+            --card-bg: #2a2a35;
+            --accent: #ff5722;
+            --text: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: var(--accent); margin-bottom: 20px; }
+        .form-container {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            gap: 10px;
+        }
+        input, button {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            font-size: 1rem;
+        }
+        input[type="text"] { flex: 2; }
+        input[type="number"] { flex: 1; }
+        button {
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { opacity: 0.9; }
+        .timers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1000px;
+        }
+        .timer-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid var(--accent);
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .timer-card.finished {
+            border-left-color: #4caf50;
+            animation: blink 1s infinite;
+        }
+        .timer-name { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; }
+        .timer-display { font-size: 2rem; font-weight: bold; font-family: monospace; margin-bottom: 15px; }
+        .controls { display: flex; gap: 5px; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8rem; background: #444; }
+        .btn-delete { background: #d32f2f; margin-left: auto; }
+        @keyframes blink {
+            50% { background-color: #4a1515; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔥 BBQ Timer Pro</h1>
+
+    <div class="form-container">
+        <input type="text" id="foodName" placeholder="Ex: Merguez, Patate...">
+        <input type="number" id="foodMinutes" placeholder="Min" min="1">
+        <button onclick="addTimer()">Ajouter</button>
+    </div>
+
+    <div class="timers-grid" id="timersGrid"></div>
+
+    <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+
+    <script>
+        let timers = [];
+        let timerInterval;
+
+        // Configuration initiale (Optionnelle, pour avoir des exemples au chargement)
+        const defaultFoods = [
+            { name: "Patate douce", minutes: 40 },
+            { name: "Merguez", minutes: 8 },
+            { name: "Chipolata", minutes: 11 }
+        ];
+
+        window.onload = () => {
+            defaultFoods.forEach(f => createTimerData(f.name, f.minutes));
+            startTicker();
+        };
+
+        function startTicker() {
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    timers.forEach(timer => {
+                        if (timer.running && timer.timeLeft > 0) {
+                            timer.timeLeft--;
+                            if (timer.timeLeft === 0) {
+                                document.getElementById(`card-${timer.id}`).classList.add('finished');
+                                playAlarm();
+                            }
+                        }
+                    });
+                    renderTimers();
+                }, 1000);
+            }
+        }
+
+        function createTimerData(name, minutes) {
+            const id = Date.now() + Math.random().toString(36).substr(2, 5);
+            timers.push({
+                id: id,
+                name: name,
+                totalSeconds: minutes * 60,
+                timeLeft: minutes * 60,
+                running: true
+            });
+            renderTimers();
+        }
+
+        function addTimer() {
+            const nameInput = document.getElementById('foodName');
+            const minInput = document.getElementById('foodMinutes');
+            
+            if (nameInput.value.trim() === "" || !minInput.value) return;
+
+            createTimerData(nameInput.value, parseInt(minInput.value));
+            nameInput.value = "";
+            minInput.value = "";
+        }
+
+        function adjustTime(id, changeInMinutes) {
+            const timer = timers.find(t => t.id === id);
+            if (timer) {
+                timer.timeLeft = Math.max(0, timer.timeLeft + (changeInMinutes * 60));
+                // Si on rajoute du temps à un timer fini, on retire l'état fini
+                if (timer.timeLeft > 0) {
+                    document.getElementById(`card-${id}`).classList.remove('finished');
+                }
+            }
+            renderTimers();
+        }
+
+        function toggleTimer(id) {
+            const timer = timers.find(t => t.id === id);
+            if (timer) timer.running = !timer.running;
+            renderTimers();
+        }
+
+        function deleteTimer(id) {
+            timers = timers.filter(t => t.id !== id);
+            const card = document.getElementById(`card-${id}`);
+            if (card) card.remove();
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function playAlarm() {
+            const alarm = document.getElementById('alarmSound');
+            alarm.play().catch(e => console.log("Audio en attente d'interaction utilisateur"));
+        }
+
+        function renderTimers() {
+            const grid = document.getElementById('timersGrid');
+            
+            timers.forEach(timer => {
+                let card = document.getElementById(`card-${timer.id}`);
+                
+                if (!card) {
+                    card = document.createElement('div');
+                    card.id = `card-${timer.id}`;
+                    card.className = 'timer-card';
+                    grid.appendChild(card);
+                }
+
+                card.innerHTML = `
+                    <div class="timer-name">${timer.name}</div>
+                    <div class="timer-display">${formatTime(timer.timeLeft)}</div>
+                    <div class="controls">
+                        <button class="btn-sm" onclick="toggleTimer('${timer.id}')">${timer.running ? 'Pause' : 'Play'}</button>
+                        <button class="btn-sm" onclick="adjustTime('${timer.id}', 1)">+1m</button>
+                        <button class="btn-sm" onclick="adjustTime('${timer.id}', -1)">-1m</button>
+                        <button class="btn-sm btn-delete" onclick="deleteTimer('${timer.id}')">🗑️</button>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
